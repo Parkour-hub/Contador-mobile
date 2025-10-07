@@ -121,6 +121,10 @@
         transition: 0.1s;
     }
     #btnFlutuante:active { filter: brightness(0.8); }
+
+    @media(max-width: 400px){
+        #btnFlutuante { width: 50px; height: 50px; font-size: 28px; }
+    }
 </style>
 </head>
 <body>
@@ -152,8 +156,10 @@ let chart = null;
 function gerarCor(nome) {
     let hash = 0;
     for (let i = 0; i < nome.length; i++) hash = nome.charCodeAt(i) + ((hash << 5) - hash);
-    const h = 200 + (hash % 60);
-    return `hsl(${h}, 70%, 60%)`;
+    const h = hash % 360;
+    const s = 70 + (hash % 10);
+    const l = 50 + (hash % 10);
+    return `hsl(${h}, ${s}%, ${l}%)`;
 }
 
 function salvar() { localStorage.setItem("contadores", JSON.stringify(contadores)); }
@@ -163,7 +169,6 @@ function atualizarTotal() {
     document.getElementById("totalGeral").textContent = `Total Geral: ${total}`;
 }
 
-// === FUNÇÃO ATUALIZADA DO GRÁFICO SEM LEGENDA ===
 function atualizarGrafico() {
     const labels = contadores.map(c => c.nome);
     const data = contadores.map(c => c.valor);
@@ -177,7 +182,7 @@ function atualizarGrafico() {
             maintainAspectRatio: false,
             animation: { animateRotate: true, animateScale: true, duration: 600 },
             plugins: {
-                legend: { display: false }, // legenda removida
+                legend: { display: false },
                 datalabels: {
                     color: 'white',
                     formatter: (value, ctx) => {
@@ -192,11 +197,29 @@ function atualizarGrafico() {
         plugins: [ChartDataLabels]
     };
 
-    if (chart) chart.destroy();
+    if(chart){
+        chart.data.labels = labels;
+        chart.data.datasets[0].data = data;
+        chart.data.datasets[0].backgroundColor = colors;
+        chart.update();
+        return;
+    }
+
     const ctx = document.getElementById('graficoPizza').getContext('2d');
     chart = new Chart(ctx, config);
 }
-// === FIM DA FUNÇÃO ATUALIZADA ===
+
+// Função para incrementar/decrementar continuamente
+function startHold(btn, action) {
+    let interval;
+    const start = () => { action(); interval = setInterval(action, 150); };
+    const stop = () => clearInterval(interval);
+    btn.addEventListener('mousedown', start);
+    btn.addEventListener('mouseup', stop);
+    btn.addEventListener('mouseleave', stop);
+    btn.addEventListener('touchstart', start);
+    btn.addEventListener('touchend', stop);
+}
 
 function adicionarSwipe(div, index) {
     let startX = 0;
@@ -231,20 +254,35 @@ function renderizar() {
         const botoes = document.createElement("div");
         botoes.className = "botoes";
 
+        // Botões
         const btnMais = document.createElement("button");
         btnMais.textContent = "+";
         btnMais.className = "mais";
-        btnMais.onclick = () => { contadores[index].valor++; salvar(); renderizar(); };
+        startHold(btnMais, () => { contadores[index].valor++; salvar(); renderizar(); });
 
         const btnMenos = document.createElement("button");
         btnMenos.textContent = "-";
         btnMenos.className = "menos";
-        btnMenos.onclick = () => { contadores[index].valor--; salvar(); renderizar(); };
+        startHold(btnMenos, () => { if(contadores[index].valor>0) contadores[index].valor--; salvar(); renderizar(); });
+
+        const btnMais10 = document.createElement("button");
+        btnMais10.textContent = "+10";
+        btnMais10.className = "mais";
+        btnMais10.onclick = () => { contadores[index].valor += 10; salvar(); renderizar(); };
+
+        const btnMenos10 = document.createElement("button");
+        btnMenos10.textContent = "-10";
+        btnMenos10.className = "menos";
+        btnMenos10.onclick = () => { if(contadores[index].valor>0) contadores[index].valor = Math.max(0, contadores[index].valor - 10); salvar(); renderizar(); };
 
         const btnReset = document.createElement("button");
         btnReset.textContent = "Reset";
         btnReset.className = "reset";
-        btnReset.onclick = () => { contadores[index].valor = 0; salvar(); renderizar(); };
+        btnReset.onclick = () => { 
+            if(confirm(`Deseja realmente resetar "${item.nome}"?`)) {
+                contadores[index].valor = 0; salvar(); renderizar();
+            }
+        };
 
         const btnExcluir = document.createElement("button");
         btnExcluir.textContent = "Excluir";
@@ -255,8 +293,10 @@ function renderizar() {
             }
         };
 
+        botoes.appendChild(btnMenos10);
         botoes.appendChild(btnMenos);
         botoes.appendChild(btnMais);
+        botoes.appendChild(btnMais10);
         botoes.appendChild(btnReset);
         botoes.appendChild(btnExcluir);
 
